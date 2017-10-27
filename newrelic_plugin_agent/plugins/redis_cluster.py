@@ -18,7 +18,6 @@ class RedisCluster(base.SocketStatsPlugin):
     GUID = 'com.meetme.newrelic_redis_cluster_agent'
 
     def get_config(self):
-        super(RedisCluster, self).__init__()
         self.node_list = self.config.get('nodes', [])
         self.master_name = self.config.get('master_name', 'redis-master')
         self.password = self.config.get('password', '')

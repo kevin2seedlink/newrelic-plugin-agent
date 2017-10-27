@@ -20,19 +20,20 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
 
     GUID = 'com.meetme.newrelic_postgresql_cluster_agent'
 
-    def __init__(self):
-        super(PostgreSqlCluster, self).__init__()
+    def get_config(self):
         self.node_list = self.config.nodes
-        self.dbname = self.config.dbname
-        self.user = self.config.user
-        self.password = self.config.password
+        self.dbname = self.config.get('dbname', 'template0')
+        self.user = self.config.get('user', 'postgres')
+        self.password = self.config.get('password', '')
+        self.cluster_host = self.config.get('cluster_host', 'localhost')
+        self.cluster_port = self.config.get('cluster_port', 5432)
 
     def add_http_status_stats(self):
         status = 0
         status_servers_num = 0
         for node in self.node_list:
-            host = self.node.get('host', 'localhost')
-            status_port = self.node.get('status_port', '15432')
+            host = node.get('host', 'localhost')
+            status_port = node.get('status_port', '15432')
             url = 'http://%s:%s/' % (host, status_port)
             result = self.http_get(url=url)
             # for governor http status
@@ -65,12 +66,12 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
         master = ''
         slaves_number = 0
         for node in self.node_list:
-            host = self.node.get('host', 'localhost')
+            host = node.get('host', 'localhost')
             kwargs = {'host': host,
-                      'port': self.node.get('port', 5432),
-                      'user': self.node.get('user', ''),
-                      'password': self.node.get('password', ''),
-                      'database': self.node.get('dbname', '')}
+                      'port': node.get('port', 5432),
+                      'user': node.get('user', ''),
+                      'password': self.password,
+                      'database': self.dbname}
             try:
                 conn = psycopg2.connect(**kwargs)
             except:
@@ -86,8 +87,9 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
             if not data.get('pg_is_in_recovery', True):
                 cluster_roles[host] = 2
                 master = host
+            else:
+                slaves_number += 1
 
-            slaves_number += 1
             self.add_gauge_value('PG_Cluster/ClusterRole/%s' % host,
                                  None,
                                  cluster_roles[host],
@@ -112,13 +114,11 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
 
     def add_cluster_stats(self):
         status = 1
-        cluster_host = self.node.get('cluster_host', 'localhost')
-        cluster_port = self.node.get('cluster_port', 5432)
-        kwargs = {'host': cluster_host,
-                  'port': cluster_port,
-                  'user': self.node.get('user', ''),
-                  'password': self.node.get('password', ''),
-                  'database': self.node.get('dbname', '')}
+        kwargs = {'host': self.cluster_host,
+                  'port': self.cluster_port,
+                  'user': self.user,
+                  'password': self.password,
+                  'database': self.dbname}
         data = {}
         try:
             conn = psycopg2.connect(**kwargs)
@@ -140,6 +140,7 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
 
     def poll(self):
         self.initialize()
+        self.get_config()
         self.add_http_status_stats()
         self.add_master_slave_stats()
         self.add_cluster_stats()

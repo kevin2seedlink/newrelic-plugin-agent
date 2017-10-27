@@ -16,11 +16,12 @@ class RedisCluster(base.SocketStatsPlugin):
 
     GUID = 'com.meetme.newrelic_redis_cluster_agent'
 
-    def __init__(self):
+    def get_config(self):
         super(RedisCluster, self).__init__()
-        self.node_list = self.config.nodes
-        self.master_name = self.master_name
-        self.password = self.config.password
+        self.node_list = self.config.get('nodes', [])
+        self.master_name = self.config.get('master_name', 'redis-master')
+        self.password = self.config.get('password', '')
+        self.db = self.config.get('test_db', 5)
 
     def add_master_slave_stats(self):
         master_normal = 1
@@ -28,7 +29,7 @@ class RedisCluster(base.SocketStatsPlugin):
         slaves_list = 0
         sentinel_list = [(node.get('host', 'localhost'),
                           node.get('sentinel_port', 26379))
-                         for node in self.config.get('nodes', [])]
+                         for node in self.node_list]
         sentinel = Sentinel(sentinel_list, socket_timeout=5)
         try:
             master_host, master_port = sentinel.discover_master(self.master_name)
@@ -42,7 +43,7 @@ class RedisCluster(base.SocketStatsPlugin):
 
         try:
             master_conn = sentinel.master_for(self.master_name,
-                                              db=5,
+                                              db=self.db,
                                               password=self.password)
             set_data = random.randint(0, 10)
             if not master_conn.set('newrelic_redis_cluster_agent', set_data) or
@@ -65,7 +66,7 @@ class RedisCluster(base.SocketStatsPlugin):
             host = node.get('host', 'localhost')
             port = node.get('port', '6379')
             redis_url = 'redis://:%s@%s:%s/%s' % (self.password,
-                                                  host, port, 5)
+                                                  host, port, str(self.db))
             conn = redis.StrictRedis.from_url(redis_url)
             try:
                 conn.get('test')
@@ -77,6 +78,7 @@ class RedisCluster(base.SocketStatsPlugin):
 
     def poll(self):
         self.initialize()
+        self.get_config()
         self.add_master_slave_stats()
         self.add_cluster_stats()
         self.finish()

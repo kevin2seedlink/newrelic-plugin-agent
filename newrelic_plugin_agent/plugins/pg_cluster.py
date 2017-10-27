@@ -101,7 +101,7 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
                              count=1)
 
         switch_over = 0
-        with open('/tmp/last_pg_master', 'w+') as f:
+        with open('/tmp/last_pg_master', 'r+') as f:
             last_master = f.readline().strip()
             if master != last_master:
                 switch_over = 1

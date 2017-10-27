@@ -2,6 +2,7 @@
 Redis Cluster Plugin
 
 """
+from __future__ import absolute_import
 import logging
 import random
 import redis
@@ -33,7 +34,7 @@ class RedisCluster(base.SocketStatsPlugin):
         sentinel = Sentinel(sentinel_list, socket_timeout=5)
         try:
             master_host, master_port = sentinel.discover_master(self.master_name)
-            with open('/tmp/last_redis_master', 'w+') as f:
+            with open('/tmp/last_redis_master', 'r+') as f:
                 last_master = f.readline().strip()
                 if last_master != master_host:
                     switch_over = 1
@@ -46,8 +47,10 @@ class RedisCluster(base.SocketStatsPlugin):
                                               db=self.db,
                                               password=self.password)
             set_data = random.randint(0, 10)
-            if not master_conn.set('newrelic_redis_cluster_agent', set_data) or
-            master_conn.get('newrelic_redis_cluster_agent') != set_data:
+            if master_conn.set('newrelic_redis_cluster_agent', set_data):
+                if master_conn.get('newrelic_redis_cluster_agent') != str(set_data):
+                    master_normal = 0
+            else:
                 master_normal = 0
         except MasterNotFoundError:
             master_normal = 0

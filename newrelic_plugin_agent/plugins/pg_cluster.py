@@ -69,7 +69,7 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
             host = node.get('host', 'localhost')
             kwargs = {'host': host,
                       'port': node.get('port', 5432),
-                      'user': node.get('user', ''),
+                      'user': self.user,
                       'password': self.password,
                       'database': self.dbname}
             try:

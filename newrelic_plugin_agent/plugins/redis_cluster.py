@@ -4,6 +4,7 @@ Redis Cluster Plugin
 """
 from __future__ import absolute_import
 import logging
+import os
 import random
 import redis
 from redis.sentinel import Sentinel, MasterNotFoundError
@@ -22,6 +23,10 @@ class RedisCluster(base.SocketStatsPlugin):
         self.master_name = self.config.get('master_name', 'redis-master')
         self.password = self.config.get('password', '')
         self.db = self.config.get('test_db', 5)
+        self.tmp_master_file = '/tmp/last_redis_master'
+        if not os.path.exists(self.tmp_master_file):
+            with open(self.tmp_master_file, 'w') as f:
+                f.write('')
 
     def add_master_slave_stats(self):
         master_normal = 1
@@ -33,10 +38,12 @@ class RedisCluster(base.SocketStatsPlugin):
         sentinel = Sentinel(sentinel_list, socket_timeout=5)
         try:
             master_host, master_port = sentinel.discover_master(self.master_name)
-            with open('/tmp/last_redis_master', 'r+') as f:
+            last_master = ''
+            with open(self.tmp_master_file, 'r') as f:
                 last_master = f.readline().strip()
-                if last_master != master_host:
-                    switch_over = 1
+            if last_master != master_host:
+                switch_over = 1
+                with open(self.tmp_master_file, 'w') as f:
                     f.write(master_host)
         except MasterNotFoundError:
             master_normal = 0

@@ -3,6 +3,7 @@ PostgreSQL Cluster Plugin
 
 """
 import logging
+import os
 import psycopg2
 from psycopg2 import extras
 
@@ -27,6 +28,10 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
         self.password = self.config.get('password', '')
         self.cluster_host = self.config.get('cluster_host', 'localhost')
         self.cluster_port = self.config.get('cluster_port', 5432)
+        self.tmp_master_file = '/tmp/last_pg_master'
+        if not os.path.exists(self.tmp_master_file):
+            with open(self.tmp_master_file, 'w') as f:
+                f.write('')
 
     def add_http_status_stats(self):
         status = 0
@@ -101,10 +106,13 @@ class PostgreSqlCluster(base.HTTPStatsPlugin):
                              count=1)
 
         switch_over = 0
-        with open('/tmp/last_pg_master', 'r+') as f:
+        last_master = ''
+        with open(self.tmp_master_file, 'r') as f:
             last_master = f.readline().strip()
-            if master != last_master:
-                switch_over = 1
+
+        if master != last_master:
+            switch_over = 1
+            with open(self.tmp_master_file, 'w') as f:
                 f.write(master)
 
         self.add_gauge_value('PG_Cluster/SwitchOver',

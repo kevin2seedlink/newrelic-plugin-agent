@@ -31,7 +31,8 @@ class RedisCluster(base.SocketStatsPlugin):
     def add_master_slave_stats(self):
         master_normal = 1
         switch_over = 0
-        slaves_list = 0
+        slaves_list = []
+        master_host = ''
         sentinel_list = [(node.get('host', 'localhost'),
                           node.get('sentinel_port', 26379))
                          for node in self.node_list]
@@ -62,6 +63,17 @@ class RedisCluster(base.SocketStatsPlugin):
             master_normal = 0
 
         slaves_list = sentinel.discover_slaves(self.master_name)
+        slaves_hosts = [slave[0] for slave in slaves_list]
+        for node in self.node_list:
+            host = node.get('host', 'localhost')
+            status = 0
+            if host == master_host:
+                status = 2
+            if host in slaves_hosts:
+                status = 1
+            self.add_gauge_value('Redis_Cluster/ClusterStatus/%s' % host,
+                                 None, status, count=1)
+
         self.add_gauge_value('Redis_Cluster/SlavesNum', None,
                              len(slaves_list), count=1)
         self.add_gauge_value('Redis_Cluster/MasterStatus', None,
@@ -69,25 +81,8 @@ class RedisCluster(base.SocketStatsPlugin):
         self.add_gauge_value('Redis_Cluster/SwitchOver', None,
                              switch_over, count=1)
 
-    def add_cluster_stats(self):
-        for node in self.node_list:
-            status = 1
-            host = node.get('host', 'localhost')
-            port = node.get('port', '6379')
-            redis_url = 'redis://:%s@%s:%s/%s' % (self.password,
-                                                  host, port, str(self.db))
-            conn = redis.StrictRedis.from_url(redis_url)
-            try:
-                conn.get('test')
-            except:
-                status = 0
-
-            self.add_gauge_value('Redis_Cluster/ClusterStatus/%s' % host,
-                                 None, status, count=1)
-
     def poll(self):
         self.initialize()
         self.get_config()
         self.add_master_slave_stats()
-        self.add_cluster_stats()
         self.finish()
